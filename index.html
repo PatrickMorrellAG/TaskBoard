@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Task Board</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg1: #ffffff; --bg2: #f5f4f1; --bg-info: #e6f1fb;
+  --tx1: #1a1a18; --tx2: #5f5e5a; --tx3: #888780;
+  --bd1: rgba(0,0,0,0.12); --bd2: rgba(0,0,0,0.22);
+  --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'SFMono-Regular', Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg1: #1e1e1c; --bg2: #2a2a28; --bg-info: #0c2a40;
+    --tx1: #f0ede6; --tx2: #b4b2a9; --tx3: #888780;
+    --bd1: rgba(255,255,255,0.10); --bd2: rgba(255,255,255,0.18);
+  }
+}
+body { font-family: var(--font); background: var(--bg2); color: var(--tx1); min-height: 100vh; }
+#app { padding: 1.5rem; min-height: 100vh; }
+
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; gap: 12px; flex-wrap: wrap; }
+.header h1 { font-size: 20px; font-weight: 500; }
+.header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.next-badge { font-size: 12px; color: var(--tx3); font-family: var(--mono); background: var(--bg2); border: 0.5px solid var(--bd1); border-radius: var(--r-md); padding: 5px 10px; }
+.btn-ghost { background: none; border: 0.5px solid var(--bd2); border-radius: var(--r-md); padding: 5px 12px; font-size: 12px; color: var(--tx2); cursor: pointer; font-family: var(--font); white-space: nowrap; }
+.btn-ghost:hover { background: var(--bg1); }
+.btn-solid { background: var(--tx1); color: var(--bg1); border: none; border-radius: var(--r-md); padding: 6px 14px; font-size: 13px; cursor: pointer; font-weight: 500; font-family: var(--font); white-space: nowrap; }
+.btn-solid:hover { opacity: 0.85; }
+.btn-danger { background: #FCEBEB; color: #791F1F; border: none; border-radius: var(--r-md); padding: 6px 14px; font-size: 13px; cursor: pointer; font-weight: 500; font-family: var(--font); }
+.btn-danger:hover { background: #F7C1C1; }
+.btn-icon { background: none; border: none; cursor: pointer; color: var(--tx3); font-size: 14px; padding: 2px 4px; line-height: 1; border-radius: 4px; }
+.btn-icon:hover { color: var(--tx1); background: var(--bg2); }
+
+.board { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; padding-bottom: 1rem; }
+.column { background: var(--bg2); border-radius: var(--r-lg); padding: 12px; width: 240px; min-width: 240px; border: 0.5px solid var(--bd1); }
+.col-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 6px; }
+.col-header-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.col-title { font-size: 13px; font-weight: 500; color: var(--tx2); letter-spacing: 0.04em; outline: none; min-width: 20px; }
+.col-count { font-size: 12px; background: var(--bg1); border: 0.5px solid var(--bd1); border-radius: 99px; padding: 1px 7px; color: var(--tx3); font-weight: 500; flex-shrink: 0; }
+
+.cards { min-height: 60px; display: flex; flex-direction: column; gap: 8px; border-radius: var(--r-md); transition: background 0.12s; }
+.cards.drag-over { background: var(--bg-info); }
+.card { background: var(--bg1); border: 0.5px solid var(--bd1); border-radius: var(--r-md); padding: 10px 12px; cursor: pointer; position: relative; }
+.card:hover { border-color: var(--bd2); }
+.card.dragging { opacity: 0.4; cursor: grabbing; }
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+.ticket-num { font-size: 11px; font-weight: 500; color: var(--tx3); font-family: var(--mono); border-radius: 4px; padding: 1px 5px; border: 0.5px solid var(--bd1); background: var(--bg2); }
+.delete-btn { opacity: 0; background: none; border: none; cursor: pointer; font-size: 13px; color: var(--tx3); padding: 0 2px; line-height: 1; transition: opacity 0.12s; }
+.card:hover .delete-btn { opacity: 1; }
+.card-tag { display: inline-block; font-size: 11px; font-weight: 500; border-radius: 4px; padding: 2px 7px; margin-bottom: 6px; }
+.tag-blue   { background: #E6F1FB; color: #0C447C; }
+.tag-green  { background: #EAF3DE; color: #27500A; }
+.tag-amber  { background: #FAEEDA; color: #633806; }
+.tag-red    { background: #FCEBEB; color: #791F1F; }
+.tag-purple { background: #EEEDFE; color: #3C3489; }
+.card-title { font-size: 14px; color: var(--tx1); line-height: 1.45; margin-bottom: 8px; }
+.card-desc-preview { font-size: 12px; color: var(--tx3); line-height: 1.4; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-meta { display: flex; align-items: center; justify-content: space-between; }
+.avatar { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 500; flex-shrink: 0; }
+.card-due { font-size: 11px; color: var(--tx3); }
+.card-due.overdue { color: #A32D2D; }
+.add-btn { margin-top: 8px; width: 100%; background: none; border: 0.5px dashed var(--bd2); border-radius: var(--r-md); padding: 8px; font-size: 13px; color: var(--tx3); cursor: pointer; font-family: var(--font); }
+.add-btn:hover { background: var(--bg1); color: var(--tx2); }
+
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 1rem; }
+.modal { background: var(--bg1); border-radius: var(--r-xl); border: 0.5px solid var(--bd1); padding: 1.5rem; width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto; }
+.modal-sm { max-width: 340px; }
+.modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 1.25rem; }
+.modal-header h2 { font-size: 15px; font-weight: 500; color: var(--tx1); }
+.modal-close { background: none; border: none; cursor: pointer; font-size: 18px; color: var(--tx3); line-height: 1; padding: 0; }
+.modal-close:hover { color: var(--tx1); }
+.field { margin-bottom: 14px; }
+.field label { font-size: 12px; color: var(--tx2); display: block; margin-bottom: 5px; font-weight: 500; }
+.field input, .field select, .field textarea {
+  width: 100%; border: 0.5px solid var(--bd2); border-radius: var(--r-md);
+  padding: 8px 10px; font-size: 13px; font-family: var(--font);
+  color: var(--tx1); background: var(--bg1); outline: none; transition: border-color 0.12s;
+}
+.field input[type=number], .field select {
+  width: 50%;
+}
+.field input:focus, .field select:focus, .field textarea:focus { border-color: #378ADD; }
+.field textarea { resize: vertical; min-height: 250px; line-height: 1.5; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.num-row { display: flex; align-items: center; gap: 8px; }
+.num-prefix { font-size: 12px; color: var(--tx3); font-family: var(--mono); background: var(--bg2); border: 0.5px solid var(--bd1); border-radius: var(--r-md); padding: 8px 10px; white-space: nowrap; }
+.modal-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 1.25rem; gap: 8px; }
+.modal-footer-right { display: flex; gap: 8px; }
+.ticket-badge-preview { display: inline-block; font-size: 11px; font-family: var(--mono); background: var(--bg2); border: 0.5px solid var(--bd1); border-radius: 4px; padding: 2px 6px; color: var(--tx3); margin-bottom: 5px; }
+
+.tag-picker { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tag-swatch { width: 28px; height: 28px; border-radius: 6px; cursor: pointer; border: 2px solid transparent; transition: border-color 0.1s, transform 0.1s; flex-shrink: 0; }
+.tag-swatch:hover { transform: scale(1.1); }
+.tag-swatch.selected { border-color: var(--tx1); }
+.swatch-blue { background: #E6F1FB; } .swatch-green { background: #EAF3DE; }
+.swatch-amber { background: #FAEEDA; } .swatch-red { background: #FCEBEB; }
+.swatch-purple { background: #EEEDFE; }
+
+.assignee-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+.assignee-opt { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; cursor: pointer; border: 2px solid transparent; transition: border-color 0.1s; }
+.assignee-opt.selected { border-color: var(--tx1); }
+
+/* settings list rows */
+.settings-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.settings-row { display: flex; align-items: center; gap: 8px; }
+.settings-row input { flex: 1; border: 0.5px solid var(--bd2); border-radius: var(--r-md); padding: 6px 10px; font-size: 13px; font-family: var(--font); color: var(--tx1); background: var(--bg1); outline: none; }
+.settings-row input:focus { border-color: #378ADD; }
+.avatar-sm { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; flex-shrink: 0; }
+.section-label { font-size: 12px; font-weight: 500; color: var(--tx2); margin-bottom: 8px; }
+.divider { border: none; border-top: 0.5px solid var(--bd1); margin: 16px 0; }
+.tag-label-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.tag-dot { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+.btn-move-right { width: 100%; background: none; border: 0.5px solid var(--bd2); border-radius: var(--r-md); padding: 6px 10px; font-size: 12px; color: var(--tx3); cursor: pointer; font-family: var(--font); margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 5px; transition: background 0.12s, color 0.12s; }
+.btn-move-right:hover { background: var(--bg1); color: var(--tx2); }
+
+.toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--tx1); color: var(--bg1); font-size: 13px; padding: 8px 16px; border-radius: 99px; opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none; z-index: 999; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.warn-box { background: #FAEEDA; border-radius: var(--r-md); padding: 10px 12px; font-size: 13px; color: #633806; margin-bottom: 14px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>Tasks</h1>
+    <div class="header-right">
+      <span class="next-badge" id="next-badge">next: TKT-001</span>
+      <button class="btn-ghost" onclick="exportData()">↓ Export</button>
+      <button class="btn-ghost" onclick="triggerImport()">↑ Import</button>
+      <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importData(event)" />
+      <button class="btn-ghost" onclick="openSettingsModal()">⚙ Settings</button>
+      <button class="btn-ghost" onclick="openTimesheetModal()">🗓 Timesheet</button>
+      <button class="btn-solid" onclick="addColumn()">+ Column</button>
+    </div>
+  </div>
+  <div class="board" id="board"></div>
+  <div id="modal-area"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── palette config ── */
+const TAG_COLORS = [
+  { key:'blue',   bg:'#E6F1FB', color:'#0C447C' },
+  { key:'green',  bg:'#EAF3DE', color:'#27500A' },
+  { key:'amber',  bg:'#FAEEDA', color:'#633806' },
+  { key:'red',    bg:'#FCEBEB', color:'#791F1F' },
+  { key:'purple', bg:'#EEEDFE', color:'#3C3489' },
+];
+const AVATAR_PALETTE = [
+  { bg:'#B5D4F4', color:'#0C447C' }, { bg:'#9FE1CB', color:'#085041' },
+  { bg:'#F5C4B3', color:'#993C1D' }, { bg:'#CECBF6', color:'#3C3489' },
+  { bg:'#FAC775', color:'#633806' }, { bg:'#C0DD97', color:'#3B6D11' },
+  { bg:'#F4C0D1', color:'#72243E' }, { bg:'#D3D1C7', color:'#444441' },
+];
+
+const TS_DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+const TS_MAX_HOURS = 7;
+
+const DEFAULT_STATE = {
+  counter: 1, prefix: '', nextId: 1,
+  tagLabels: { blue:'blue', green:'green', amber:'amber', red:'red', purple:'purple' },
+  assignees: [
+  ],
+  timesheet: { days: {} },
+  cols: [
+    { id:1, title:'To do', cards:[
+    ]},
+    { id:2, title:'In progress', cards:[
+    ]},
+    { id:3, title:'Queued for release', cards:[
+    ]},
+    { id:4, title:'Merged to dev', cards:[
+    ]},
+    { id:5, title:'Done', cards:[
+    ]},
+  ]
+};
+
+const LS_KEY = 'taskboard_data';
+function loadState() {
+  try { const r = localStorage.getItem(LS_KEY); if (r) return JSON.parse(r); } catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULT_STATE));
+}
+function saveState() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){} }
+
+let state = loadState();
+// back-compat: migrate old assignee index to id
+state.cols.forEach(col => col.cards.forEach(c => {
+  if (c.assignee !== undefined && c.assigneeId === undefined) {
+    const legacy = [null,null,null,null,null];
+    c.assigneeId = (c.assignee >= 0 && c.assignee < 4) ? (c.assignee + 1) : null;
+    delete c.assignee;
+  }
+}));
+if (!state.tagLabels) state.tagLabels = { blue:'blue', green:'green', amber:'amber', red:'red', purple:'purple' };
+if (!state.assignees) state.assignees = DEFAULT_STATE.assignees;
+ensureTimesheet();
+
+let dragCardId = null, dragSourceColId = null;
+
+/* ── helpers ── */
+function fmtNum(n) { if(isNullOrWhitespace(state.prefix)){return String(n)} else {return state.prefix + '-' + String(n); }}
+function updateBadge() { document.getElementById('next-badge').textContent = 'next: ' + fmtNum(state.counter); }
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function findCard(id) { for (const col of state.cols) { const c = col.cards.find(x=>x.id===id); if(c) return c; } }
+function findColByCard(id) { return state.cols.find(c=>c.cards.find(x=>x.id===id))?.id; }
+function getAssignee(id) { return state.assignees.find(a=>a.id===id) || null; }
+function assigneePalette(a) { return AVATAR_PALETTE[a.paletteIdx % AVATAR_PALETTE.length]; }
+function tagLabel(key) { return state.tagLabels[key] || key; }
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+/* ── render ── */
+function render() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  state.cols.forEach(col => {
+    const el = document.createElement('div');
+    el.className = 'column';
+    const colIdx = state.cols.indexOf(col);
+    const isLastCol = colIdx === state.cols.length - 1;
+    const nextCol = !isLastCol ? state.cols[colIdx + 1] : null;
+    el.innerHTML = `
+      <div class="col-header">
+        <div class="col-header-left">
+          <span class="col-title" contenteditable="true" spellcheck="false"
+            onblur="renameCol(${col.id},this.textContent)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"
+          >${escHtml(col.title)}</span>
+          <span class="col-count">${col.cards.length}</span>
+        </div>
+        <button class="btn-icon" onclick="confirmDeleteCol(${col.id})" title="Delete column">✕</button>
+      </div>
+      ${!isLastCol && col.cards.length > 0 ? `<button class="btn-move-right" onclick="confirmMoveAllRight(${col.id})" title="Move all cards to next column">Move all to &ldquo;${escHtml(nextCol.title)}&rdquo; &rarr;</button>` : ''}
+      <div class="cards" id="cards-${col.id}"
+        ondragover="onDragOver(event,${col.id})"
+        ondragleave="onDragLeave(event,${col.id})"
+        ondrop="onDrop(event,${col.id})">
+        ${col.cards.map(c => cardHTML(c)).join('')}
+      </div>
+      <button class="add-btn" onclick="openNewCardModal(${col.id})">+ Add card</button>
+    `;
+    board.appendChild(el);
+  });
+  attachDragEvents();
+  updateBadge();
+}
+
+function cardHTML(c) {
+  const a = getAssignee(c.assigneeId);
+  const pal = a ? assigneePalette(a) : null;
+  const today = new Date();
+  const due = c.due ? new Date(c.due + ' 2026') : null;
+  const overdue = due && due < today;
+  const descPreview = c.desc ? `<div class="card-desc-preview">${escHtml(c.desc)}</div>` : '';
+  const avatarHTML = a
+    ? `<div class="avatar" style="background:${pal.bg};color:${pal.color}">${escHtml(a.init)}</div>`
+    : `<div class="avatar" style="background:var(--bg2);color:var(--tx3)">—</div>`;
+  const tc = TAG_COLORS.find(t=>t.key===c.tag);
+  const tagStyle = tc ? `background:${tc.bg};color:${tc.color}` : '';
+  return `<div class="card" id="card-${c.id}" draggable="true" data-card="${c.id}" onclick="openEditModal(event,${c.id})">
+    <div class="card-top">
+      <span class="ticket-num">${fmtNum(c.num)}</span>
+      <button class="delete-btn" onclick="event.stopPropagation();deleteCard(${c.id})" title="Delete">✕</button>
+    </div>
+    <div class="card-tag" style="${tagStyle}">${escHtml(tagLabel(c.tag))}</div>
+    <div class="card-title">${escHtml(c.title)}</div>
+    ${descPreview}
+  </div>`;
+}
+
+/* ── drag ── */
+function attachDragEvents() {
+  document.querySelectorAll('.card[draggable]').forEach(el => {
+    el.addEventListener('dragstart', e => {
+      dragCardId = parseInt(el.dataset.card);
+      dragSourceColId = findColByCard(dragCardId);
+      setTimeout(() => el.classList.add('dragging'), 0);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    el.addEventListener('dragend', () => el.classList.remove('dragging'));
+  });
+}
+function onDragOver(e, colId) { e.preventDefault(); document.getElementById('cards-'+colId).classList.add('drag-over'); }
+function onDragLeave(e, colId) { document.getElementById('cards-'+colId).classList.remove('drag-over'); }
+function onDrop(e, colId) {
+  e.preventDefault();
+  document.getElementById('cards-'+colId).classList.remove('drag-over');
+  if (!dragCardId) return;
+  const src = state.cols.find(c=>c.id===dragSourceColId);
+  const tgt = state.cols.find(c=>c.id===colId);
+  if (!src||!tgt) return;
+  const card = src.cards.find(c=>c.id===dragCardId);
+  src.cards = src.cards.filter(c=>c.id!==dragCardId);
+  tgt.cards.push(card);
+  dragCardId = null;
+  saveState(); render();
+}
+
+/* ── column actions ── */
+function renameCol(colId, name) {
+  const col = state.cols.find(c=>c.id===colId);
+  if (col && name.trim()) { col.title = name.trim(); saveState(); }
+}
+function addColumn() {
+  state.cols.push({ id: ++state.nextId, title: 'New column', cards: [] });
+  saveState(); render();
+}
+function confirmMoveAllRight(colId) {
+  const colIdx = state.cols.findIndex(c=>c.id===colId);
+  if (colIdx === -1 || colIdx === state.cols.length - 1) return;
+  const col = state.cols[colIdx];
+  const nextCol = state.cols[colIdx + 1];
+  const count = col.cards.length;
+  if (count === 0) { showToast('No cards to move'); return; }
+  document.getElementById('modal-area').innerHTML = `
+  <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2>Move all cards</h2>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <p style="font-size:13px;color:var(--tx2);margin-bottom:1rem;">Move <strong>${count} card${count>1?'s':''}</strong> from <strong>${escHtml(col.title)}</strong> to <strong>${escHtml(nextCol.title)}</strong>?</p>
+      <div class="modal-footer">
+        <span></span>
+        <div class="modal-footer-right">
+          <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn-solid" onclick="moveAllRight(${colId})">Move all →</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function moveAllRight(colId) {
+  const colIdx = state.cols.findIndex(c=>c.id===colId);
+  if (colIdx === -1 || colIdx === state.cols.length - 1) return;
+  const col = state.cols[colIdx];
+  const nextCol = state.cols[colIdx + 1];
+  const count = col.cards.length;
+  nextCol.cards.push(...col.cards);
+  col.cards = [];
+  closeModal(); saveState(); render(); showToast(`Moved ${count} card${count>1?'s':''} to "${nextCol.title}"`);
+}
+
+function confirmDeleteCol(colId) {
+  const col = state.cols.find(c=>c.id===colId);
+  if (!col) return;
+  const count = col.cards.length;
+  const area = document.getElementById('modal-area');
+  area.innerHTML = `
+  <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2>Delete column</h2>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      ${count > 0 ? `<div class="warn-box">This column has <strong>${count} card${count>1?'s':''}</strong>. All cards will be permanently deleted.</div>` : `<p style="font-size:13px;color:var(--tx2);margin-bottom:1rem;">Delete <strong>${escHtml(col.title)}</strong>? This can't be undone.</p>`}
+      <div class="modal-footer">
+        <span></span>
+        <div class="modal-footer-right">
+          <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn-danger" onclick="deleteCol(${colId})">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function deleteCol(colId) {
+  state.cols = state.cols.filter(c=>c.id!==colId);
+  closeModal(); saveState(); render(); showToast('Column deleted');
+}
+
+/* ── card actions ── */
+function deleteCard(cardId) {
+  state.cols.forEach(col => col.cards = col.cards.filter(c=>c.id!==cardId));
+  saveState(); render(); showToast('Card deleted');
+}
+function closeModal() { document.getElementById('modal-area').innerHTML = ''; }
+
+/* ── tag swatch builder ── */
+function tagSwatchesHTML(selected) {
+  return TAG_COLORS.map(tc =>
+    `<div class="tag-swatch swatch-${tc.key}${tc.key===selected?' selected':''}" onclick="selectTag(this,'${tc.key}')" title="${tagLabel(tc.key)}" style="background:${tc.bg};border-color:${tc.key===selected?'var(--tx1)':'transparent'}"></div>`
+  ).join('') + `<span style="font-size:12px;color:var(--tx3);margin-left:4px;" id="swatch-label-display">${escHtml(tagLabel(selected))}</span>`;
+}
+function selectTag(el, key) {
+  document.querySelectorAll('.tag-swatch').forEach(s => { s.classList.remove('selected'); s.style.borderColor='transparent'; });
+  el.classList.add('selected');
+  el.style.borderColor = 'var(--tx1)';
+  document.getElementById('modal-selected-tag').value = key;
+  const lbl = document.getElementById('swatch-label-display');
+  if (lbl) lbl.textContent = tagLabel(key);
+}
+
+/* ── new card modal ── */
+function openNewCardModal(colId) {
+  document.getElementById('modal-area').innerHTML = `
+  <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <div><span class="ticket-badge-preview">${fmtNum(state.counter)}</span></div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="field"><label>Title</label><input id="m-title" placeholder="Card title" /></div>
+      <div class="field"><label>Description</label><textarea id="m-desc" placeholder="Add more detail…"></textarea></div>
+      <div class="field"><label>Tag</label><div class="tag-picker">${tagSwatchesHTML('blue')}</div><input type="hidden" id="modal-selected-tag" value="blue" /></div>
+      <div class="modal-footer">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <div class="modal-footer-right"><button class="btn-solid" onclick="saveNewCard(${colId})">Add card</button></div>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('m-title').focus();
+}
+function saveNewCard(colId) {
+  const title = document.getElementById('m-title').value.trim();
+  if (!title) { document.getElementById('m-title').focus(); return; }
+  const col = state.cols.find(c=>c.id===colId);
+  col.cards.push({
+    id: ++state.nextId, num: state.counter++, title,
+    desc: document.getElementById('m-desc').value.trim(),
+    tag: document.getElementById('modal-selected-tag').value
+  });
+  closeModal(); saveState(); render(); showToast('Card added');
+}
+
+/* ── edit card modal ── */
+function openEditModal(e, cardId) {
+  if (e.target.classList.contains('delete-btn')) return;
+  const card = findCard(cardId);
+  if (!card) return;
+  const colId = findColByCard(cardId);
+  document.getElementById('modal-area').innerHTML = `
+  <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <div><span class="ticket-badge-preview" id="num-preview">${fmtNum(card.num)}</span></div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="field"><label>Ticket number</label>
+        <div class="num-row">
+          <span class="num-prefix">${state.prefix}-</span>
+          <input id="e-num" type="number" min="1" value="${card.num}" style="font-family:var(--mono);font-size:13px;"
+            oninput="document.getElementById('num-preview').textContent='${state.prefix}-'+String(this.value||0)" />
+        </div>
+      </div>
+      <div class="field"><label>Title</label><input id="e-title" value="${escHtml(card.title)}" /></div>
+      <div class="field"><label>Description</label><textarea id="e-desc">${escHtml(card.desc||'')}</textarea></div>
+      <div class="field"><label>Tag</label><div class="tag-picker">${tagSwatchesHTML(card.tag)}</div><input type="hidden" id="modal-selected-tag" value="${card.tag}" /></div>
+      <div class="field"><label>Move to column</label>
+        <select id="e-col">${state.cols.map(c=>`<option value="${c.id}"${c.id===colId?' selected':''}>${escHtml(c.title)}</option>`).join('')}</select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-danger" onclick="deleteCard(${cardId});closeModal()">Delete</button>
+        <div class="modal-footer-right">
+          <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn-solid" onclick="saveEditCard(${cardId},${colId})">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('e-title').focus();
+}
+function saveEditCard(cardId, origColId) {
+  const title = document.getElementById('e-title').value.trim();
+  if (!title) { document.getElementById('e-title').focus(); return; }
+  const card = findCard(cardId);
+  const newNum = parseInt(document.getElementById('e-num').value);
+  card.num = (!isNaN(newNum) && newNum > 0) ? newNum : card.num;
+  card.title = title;
+  card.desc = document.getElementById('e-desc').value.trim();
+  card.tag = document.getElementById('modal-selected-tag').value;
+  const newColId = parseInt(document.getElementById('e-col').value);
+  if (newColId !== origColId) {
+    const src = state.cols.find(c=>c.id===origColId);
+    const tgt = state.cols.find(c=>c.id===newColId);
+    src.cards = src.cards.filter(c=>c.id!==cardId);
+    tgt.cards.push(card);
+  }
+  closeModal(); saveState(); render(); showToast('Changes saved');
+}
+
+/* ── settings modal ── */
+function openSettingsModal() {
+  document.getElementById('modal-area').innerHTML = buildSettingsHTML();
+}
+function buildSettingsHTML() {
+  const assigneeRows = state.assignees.map(a => {
+    const pal = assigneePalette(a);
+    return `<div class="settings-row" id="arow-${a.id}">
+      <div class="avatar-sm" style="background:${pal.bg};color:${pal.color}">${escHtml(a.init)}</div>
+      <input value="${escHtml(a.init)}" maxlength="3" style="width:64px;flex:none;text-align:center;font-weight:500;" oninput="liveUpdateAssignee(${a.id},this.value)" />
+      <select style="flex:1;font-size:12px;" onchange="updateAssigneePalette(${a.id},this.value)">
+        ${AVATAR_PALETTE.map((p,i)=>`<option value="${i}"${a.paletteIdx===i?' selected':''}>${p.bg}</option>`).join('')}
+      </select>
+      <button class="btn-icon" style="color:#A32D2D;" onclick="removeAssignee(${a.id})" title="Remove">✕</button>
+    </div>`;
+  }).join('');
+
+  const tagRows = TAG_COLORS.map(tc =>
+    `<div class="tag-label-row">
+      <div class="tag-dot" style="background:${tc.bg};border:1px solid ${tc.color}33;"></div>
+      <input value="${escHtml(tagLabel(tc.key))}" style="flex:1;border:0.5px solid var(--bd2);border-radius:var(--r-md);padding:5px 8px;font-size:13px;font-family:var(--font);color:var(--tx1);background:var(--bg1);outline:none;"
+        oninput="state.tagLabels['${tc.key}']=this.value" />
+    </div>`
+  ).join('');
+
+  return `<div class="modal-bg" onclick="if(event.target===this)saveAndCloseSettings()">
+    <div class="modal" style="max-width:380px;">
+      <div class="modal-header">
+        <h2>Settings</h2>
+        <button class="modal-close" onclick="saveAndCloseSettings()">×</button>
+      </div>
+
+      <div class="section-label">Ticket counter</div>
+      <div class="field-row" style="margin-bottom:10px;">
+        <div class="field" style="margin-bottom:0;">
+          <label>Prefix</label>
+          <input id="c-prefix" value="${state.prefix}" maxlength="8" oninput="updateCounterPreview()" />
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Next number</label>
+          <input id="c-start" type="number" min="1" value="${state.counter}" oninput="updateCounterPreview()" />
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--tx3);margin-bottom:4px;">Preview: <span id="c-preview" style="font-family:var(--mono);font-weight:500;color:var(--tx1);">${fmtNum(state.counter)}</span></p>
+
+      <hr class="divider" />
+
+      <div class="section-label">Tag labels</div>
+      ${tagRows}
+
+      <hr class="divider" />
+
+      <div class="modal-footer" style="margin-top:1.25rem;">
+        <span></span>
+        <div class="modal-footer-right">
+          <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn-solid" onclick="saveSettings()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function updateCounterPreview() {
+  const p = (document.getElementById('c-prefix')?.value).toUpperCase();
+  const n = parseInt(document.getElementById('c-start')?.value) || state.counter;
+  const el = document.getElementById('c-preview');
+  if (el) el.textContent = p + '-' + String(n);
+}
+function liveUpdateAssignee(id, val) {
+  const a = state.assignees.find(x=>x.id===id);
+  if (a) { a.init = val.toUpperCase().slice(0,3); }
+  // update the avatar preview in the row
+  const row = document.getElementById('arow-'+id);
+  if (row) { const av = row.querySelector('.avatar-sm'); if(av) av.textContent = a.init; }
+}
+function updateAssigneePalette(id, idx) {
+  const a = state.assignees.find(x=>x.id===id);
+  if (a) {
+    a.paletteIdx = parseInt(idx);
+    const pal = assigneePalette(a);
+    const row = document.getElementById('arow-'+id);
+    if (row) { const av = row.querySelector('.avatar-sm'); if(av){ av.style.background=pal.bg; av.style.color=pal.color; } }
+  }
+}
+function addAssignee() {
+  const newA = { id: ++state.nextId, init: 'NEW', paletteIdx: state.assignees.length % AVATAR_PALETTE.length };
+  state.assignees.push(newA);
+  document.getElementById('modal-area').innerHTML = buildSettingsHTML();
+}
+function removeAssignee(id) {
+  state.assignees = state.assignees.filter(a=>a.id!==id);
+  // clear from cards
+  state.cols.forEach(col=>col.cards.forEach(c=>{ if(c.assigneeId===id) c.assigneeId=null; }));
+  document.getElementById('modal-area').innerHTML = buildSettingsHTML();
+}
+function isNullOrWhitespace(str) {
+    return str === null || str.trim() === '';
+}
+function saveAndCloseSettings() { saveSettings(); }
+function saveSettings() {
+  const p = document.getElementById('c-prefix')?.value.trim()
+  const n = parseInt(document.getElementById('c-start')?.value);
+  state.prefix = p.toUpperCase();
+  if (!isNaN(n) && n > 0) state.counter = n;
+  // tag labels already updated live via oninput
+  closeModal(); saveState(); render(); showToast('Settings saved');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('modal-area').innerHTML) closeModal();
+});
+
+/* ── timesheet ── */
+function ensureTimesheet() {
+  if (!state.timesheet) state.timesheet = { days: {} };
+  TS_DAYS.forEach(day => {
+    if (!state.timesheet.days[day]) state.timesheet.days[day] = { holiday: false, entries: [] };
+  });
+}
+function allCardsFlat() {
+  const arr = [];
+  state.cols.forEach(col => col.cards.forEach(c => arr.push(c)));
+  return arr;
+}
+function cardLabel(c) { return fmtNum(c.num) + ' — ' + c.title; }
+function refreshTimesheetModal() {
+  const area = document.getElementById('modal-area');
+  if (area) area.innerHTML = buildTimesheetHTML();
+}
+function openTimesheetModal() {
+  ensureTimesheet();
+  document.getElementById('modal-area').innerHTML = buildTimesheetHTML();
+}
+function buildTimesheetHTML() {
+  let cards = allCardsFlat();
+  
+  const dayBlocks = TS_DAYS.map(day => {
+    const d = state.timesheet.days[day];
+    const total = d.holiday ? 0 : d.entries.reduce((s, e) => s + (parseFloat(e.hours) || 0), 0);
+    const overUnder = !d.holiday && d.entries.length > 0 && Math.abs(total - TS_MAX_HOURS) > 0.001;
+    const totalColor = overUnder ? '#A32D2D' : 'var(--tx3)';
+    const entryRows = d.entries.map((e, idx) => `
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+        <select style="width:100px; flex:1;font-size:12px;border:0.5px solid var(--bd2);border-radius:var(--r-md);padding:6px 8px;background:var(--bg1);color:var(--tx1);font-family:var(--font);" onchange="updateEntryTask('${day}',${idx},this.value)">
+          ${cards.sort((a,b) => b.id - a.id).map(c => `<option value="${c.id}"${c.id === e.cardId ? ' selected' : ''}>${escHtml(cardLabel(c))}</option>`).join('')}
+        </select>
+        <input type="number" min="0" max="${TS_MAX_HOURS}" step="1" value="${e.hours}" style="width:60px;border:0.5px solid var(--bd2);border-radius:var(--r-md);padding:6px 8px;font-family:var(--mono);font-size:12px;background:var(--bg1);color:var(--tx1);" onchange="updateEntryHours('${day}',${idx},this.value)" />
+        <button class="btn-icon" onclick="removeEntry('${day}',${idx})" title="Remove">✕</button>
+      </div>`
+    ).join('');
+    return `
+      <div style="border:0.5px solid var(--bd1);border-radius:var(--r-md);padding:10px 12px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${d.holiday ? '0' : '8px'};">
+          <label style="display:flex;align-items:center;gap:7px;font-weight:500;font-size:13px;cursor:pointer;">
+            <input type="checkbox" ${d.holiday ? 'checked' : ''} onchange="toggleHoliday('${day}')" /> ${day}
+          </label>
+          <span style="font-size:11px;color:${totalColor};font-family:var(--mono);">${d.holiday ? 'Holiday' : total + ' / ' + TS_MAX_HOURS + 'h'}</span>
+        </div>
+        ${d.holiday ? '' : `
+          ${cards.length === 0 ? '<p style="font-size:12px;color:var(--tx3);">No tasks on the board yet.</p>' : entryRows}
+          ${cards.length > 0 ? `<button class="add-btn" style="padding:6px;font-size:12px;margin-top:0;" onclick="addEntry('${day}')">+ Add task</button>` : ''}
+        `}
+      </div>`;
+  }).join('');
+
+  return `<div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h2>Timesheet</h2>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      ${dayBlocks}
+      <div class="modal-footer">
+        <button class="btn-ghost" onclick="clearTimesheet()">Clear week</button>
+        <div class="modal-footer-right">
+          <button class="btn-ghost" onclick="closeModal()">Close</button>
+          <button class="btn-solid" onclick="copyTimesheet()">Copy to clipboard</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function toggleHoliday(day) {
+  state.timesheet.days[day].holiday = !state.timesheet.days[day].holiday;
+  saveState(); refreshTimesheetModal();
+}
+function addEntry(day) {
+  const cards = allCardsFlat();
+  if (cards.length === 0) return;
+  state.timesheet.days[day].entries.push({ cardId: 0, hours: 7, title: "Select task" });
+  saveState(); refreshTimesheetModal();
+}
+function removeEntry(day, idx) {
+  state.timesheet.days[day].entries.splice(idx, 1);
+  saveState(); refreshTimesheetModal();
+}
+function updateEntryTask(day, idx, val) {
+  state.timesheet.days[day].entries[idx].cardId = parseInt(val);
+  saveState();
+}
+function updateEntryHours(day, idx, val) {
+  let h = parseFloat(val);
+  if (isNaN(h) || h < 0) h = 0;
+  if (h > TS_MAX_HOURS) h = TS_MAX_HOURS;
+  state.timesheet.days[day].entries[idx].hours = h;
+  saveState(); refreshTimesheetModal();
+}
+function clearTimesheet() {
+  TS_DAYS.forEach(day => { state.timesheet.days[day] = { holiday: false, entries: [] }; });
+  saveState(); refreshTimesheetModal(); showToast('Timesheet cleared');
+}
+function copyTimesheet() {
+  const lines = [];
+  TS_DAYS.forEach(day => {
+    const d = state.timesheet.days[day];
+    if (d.holiday) { lines.push(day + ' - Holiday'); return; }
+    let i = 0
+    d.entries.forEach(e => {
+      const card = findCard(e.cardId);
+      const hours = parseFloat(e.hours) || 0;
+      if (!card || hours <= 0) return;
+      let adjustment = 0
+      if (i === 0) adjustment = 0.5
+      lines.push(day + ' - ' + card.title + ' (' + (hours + adjustment) + 'h)');
+      i++;
+    });
+  });
+  if (lines.length === 0) { showToast('Nothing to copy yet'); return; }
+  const text = lines.join('\n');
+  const done = () => showToast('Copied to clipboard');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) { showToast('Copy failed'); }
+  document.body.removeChild(ta);
+}
+
+/* ── export / import ── */
+function exportData() {
+  const json = JSON.stringify(state, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = 'taskboard-' + date + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Board exported');
+}
+
+function triggerImport() {
+  document.getElementById('import-file-input').value = '';
+  document.getElementById('import-file-input').click();
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    let parsed;
+    try {
+      parsed = JSON.parse(e.target.result);
+    } catch(err) {
+      showToast('Invalid JSON file'); return;
+    }
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.cols)) {
+      showToast('Unrecognised format'); return;
+    }
+    const totalCards = parsed.cols.reduce(function(n,c){ return n + (c.cards||[]).length; }, 0);
+    const area = document.getElementById('modal-area');
+    area.innerHTML = '<div class="modal-bg" onclick="if(event.target===this)closeModal()">'
+      + '<div class="modal modal-sm">'
+      + '<div class="modal-header"><h2>Import board</h2>'
+      + '<button class="modal-close" onclick="closeModal()">×</button></div>'
+      + '<div class="warn-box">This will <strong>replace</strong> your current board with the imported data. This can\'t be undone.</div>'
+      + '<p style="font-size:13px;color:var(--tx2);margin-bottom:1rem;">Found <strong>' + parsed.cols.length + ' column' + (parsed.cols.length !== 1 ? 's' : '') + '</strong> and <strong>' + totalCards + ' card' + (totalCards !== 1 ? 's' : '') + '</strong>.</p>'
+      + '<div class="modal-footer"><span></span>'
+      + '<div class="modal-footer-right">'
+      + '<button class="btn-ghost" onclick="closeModal()">Cancel</button>'
+      + '<button class="btn-danger" id="confirm-import-btn">Replace &amp; import</button>'
+      + '</div></div></div></div>';
+    document.getElementById('confirm-import-btn').onclick = function() {
+      state = parsed;
+      saveState();
+      closeModal();
+      render();
+      showToast('Board imported');
+    };
+  };
+  reader.readAsText(file);
+}
+
+render();
+</script>
+</body>
+</html>
