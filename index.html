@@ -304,7 +304,7 @@ function onDrop(e, colId) {
   if (!src||!tgt) return;
   const card = src.cards.find(c=>c.id===dragCardId);
   src.cards = src.cards.filter(c=>c.id!==dragCardId);
-  tgt.cards.push(card);
+  tgt.cards.unshift(card);
   dragCardId = null;
   saveState(); render();
 }
